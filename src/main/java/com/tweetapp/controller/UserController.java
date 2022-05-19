@@ -15,9 +15,11 @@ import com.tweetapp.dto.UserLoginDTO;
 import com.tweetapp.model.User;
 import com.tweetapp.service.UserService;
 
-import io.swagger.annotations.ApiOperation;
+import lombok.extern.slf4j.Slf4j;
+
 
 @Controller
+@Slf4j
 @RequestMapping(value = "/api/v1.0/tweets")
 public class UserController {
 	
@@ -25,28 +27,37 @@ public class UserController {
 	UserService userService;
 
 	@PostMapping(value = "/register")
-	@ApiOperation(value = "To register new User", response = RegisterUserResponseDTO.class, httpMethod = "POST")
 	private ResponseEntity<RegisterUserResponseDTO> registerUser(@RequestBody User userDTO){
+		log.info("Inside User Controller || registerUser Method || Start");
+		log.info("Inside User Controller || registerUser Method || End");
 		return userService.registerUser(userDTO);
 	}
 	
 	@GetMapping(value = "/login")
 	private ResponseEntity<String> loginUser(@RequestBody UserLoginDTO userLoginModel){
+		log.info("Inside User Controller || loginUser Method || Start");
+		log.info("Inside User Controller || loginUser Method || End");
 		return userService.login(userLoginModel);
 	}
 	
 	@GetMapping(value = "/{username}/forgot")
-	private ResponseEntity<String> forgetPassword(@PathVariable String username, @RequestBody ForgotPasswordDTO forgotPasswordDTO){ 
+	private ResponseEntity<String> forgetPassword(@PathVariable String username, @RequestBody ForgotPasswordDTO forgotPasswordDTO){
+		log.info("Inside User Controller || forgetPassword Method || Start");
+		log.info("Inside User Controller || forgetPassword Method || End");
 		return userService.forgotpassword(username, forgotPasswordDTO);
 	}
 	
 	@GetMapping(value = "/users/all")
 	private ResponseEntity<?> getAllUser(){
+		log.info("Inside User Controller || getAllUser Method || Start");
+		log.info("Inside User Controller || getAllUser Method || End");
 		return userService.getAllUser();
 	}
 	
 	@GetMapping(value = "user/search/{username}")
 	private ResponseEntity<?> searchUserByUsername(@PathVariable String username){
+		log.info("Inside User Controller || searchUserByUsername Method || Start");
+		log.info("Inside User Controller || searchUserByUsername Method || End");
 		return userService.getUserByUsername(username);
 	}
 }
