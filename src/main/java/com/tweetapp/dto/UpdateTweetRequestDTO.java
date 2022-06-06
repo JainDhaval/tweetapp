@@ -7,4 +7,5 @@ import lombok.Setter;
 @Setter
 public class UpdateTweetRequestDTO {
 	private String tweetDescriptions;
+	private String tweetTag;
 }

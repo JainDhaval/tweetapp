@@ -9,10 +9,14 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
+import com.tweetapp.dto.DeleteTweetResponseDTO;
 import com.tweetapp.dto.ReplyTweetRequestDTO;
 import com.tweetapp.dto.TweetPostRequestDTO;
+import com.tweetapp.dto.TweetPostResponseDTO;
 import com.tweetapp.dto.TweetsResponseDTO;
 import com.tweetapp.dto.UpdateTweetRequestDTO;
+import com.tweetapp.exception.TweetNotFoundException;
+import com.tweetapp.exception.UserNotFoundException;
 import com.tweetapp.model.Reply;
 import com.tweetapp.model.Tweet;
 import com.tweetapp.repository.ReplyRepository;
@@ -35,8 +39,9 @@ public class TweetServiceImpl implements TweetService {
 	ReplyRepository replyRepository;
 
 	@Override
-	public ResponseEntity<String> postTweets(String username, TweetPostRequestDTO tweetPostRequestDTO) {
+	public ResponseEntity<TweetPostResponseDTO> postTweets(String username, TweetPostRequestDTO tweetPostRequestDTO) throws UserNotFoundException {
 		log.info("Inside TweetServiceImpl || postTweets Method || Start");
+		TweetPostResponseDTO tweetPostResponseDTO = new TweetPostResponseDTO();
 		if(userRepository.getUserByLoginId(username).isPresent()) {
 			Tweet tweet = new Tweet();
 			tweet.setLoginId(username);
@@ -48,18 +53,21 @@ public class TweetServiceImpl implements TweetService {
 			tweet.setLikeId(new ArrayList<>());
 			
 			if(!tweetRepository.save(tweet).getLoginId().isEmpty()) {
-				log.debug("Inside TweetServiceImpl || postTweets Method || Tweet Posted",username);
+				log.info("Inside TweetServiceImpl || postTweets Method || Tweet Posted",username);
+				tweetPostResponseDTO.setMessage("Tweet Posted");
 				log.info("Inside TweetServiceImpl || postTweets Method || End");
-				return new ResponseEntity<String>("Tweet Posted",HttpStatus.CREATED);
+				return new ResponseEntity<TweetPostResponseDTO>(tweetPostResponseDTO,HttpStatus.CREATED);
 			}
-			log.debug("Inside TweetServiceImpl || postTweets Method || Some error occur while posting",username);
+			log.info("Inside TweetServiceImpl || postTweets Method || Some error occur while posting",username);
+			tweetPostResponseDTO.setMessage("Something gone wrong. Please try again");
 			log.info("Inside TweetServiceImpl || postTweets Method || End");
-			return new ResponseEntity<String>("Something gone wrong. Please try again",HttpStatus.BAD_REQUEST);
+			return new ResponseEntity<TweetPostResponseDTO>(tweetPostResponseDTO,HttpStatus.BAD_REQUEST);
 		}
 		else {
-			log.debug("Inside TweetServiceImpl || postTweets Method || User not found",username);
+			log.info("Inside TweetServiceImpl || postTweets Method || User not found",username);
+			tweetPostResponseDTO.setMessage("Something gone wrong. Please try again");
 			log.info("Inside TweetServiceImpl || postTweets Method || End");
-			return new ResponseEntity<String>("User not found", HttpStatus.NOT_FOUND);
+			throw new UserNotFoundException("User Not Found");
 		}
 	}
 
@@ -100,51 +108,81 @@ public class TweetServiceImpl implements TweetService {
 	}
 
 	@Override
-	public ResponseEntity<?> getAlltweets() {
+	public ResponseEntity<?> getAlltweets() throws TweetNotFoundException {
 		log.info("Inside TweetServiceImpl || getAlltweets Method || Start");
-		TweetsResponseDTO tweetsResponseDTO = new TweetsResponseDTO();
-		tweetsResponseDTO.setTweets(tweetRepository.findAll());
-		if(tweetsResponseDTO.getTweets().size() > 0) {
-			log.debug("Inside TweetServiceImpl || getAlltweets Method || Tweets Found", tweetsResponseDTO.getTweets().size());
+		List<TweetsResponseDTO> tweetResponse = new ArrayList<>();
+		List<Tweet> tweets = tweetRepository.findAll();
+		if(tweets.size() > 0) {
+			for (Tweet tweet : tweets) {
+				TweetsResponseDTO tweetsResponseDTO = new TweetsResponseDTO();
+				tweetsResponseDTO.setTweetId(tweet.getTweetId());
+				tweetsResponseDTO.setLoginId(tweet.getLoginId());
+				tweetsResponseDTO.setTweetDescription(tweet.getTweetDescription());
+				tweetsResponseDTO.setPostDate(tweet.getPostDate());
+				tweetsResponseDTO.setTweetTag(tweet.getTweetTag());
+				tweetsResponseDTO.setTweetLikes(tweet.getTweetLikes());
+				List<Reply> replys = (List<Reply>) replyRepository.findAllById(tweet.getReplyId());
+				tweetsResponseDTO.setReplys(replys);
+				tweetsResponseDTO.setLikeIds(tweet.getLikeId());
+				tweetResponse.add(tweetsResponseDTO);
+			}
+			log.debug("Inside TweetServiceImpl || getAlltweets Method || Tweets Found", tweets.size());
 			log.info("Inside TweetServiceImpl || getAlltweets Method || End");
-			return new ResponseEntity<TweetsResponseDTO>(tweetsResponseDTO,HttpStatus.OK);
+			return new ResponseEntity<List<TweetsResponseDTO>>(tweetResponse,HttpStatus.OK);
 		}
-		else if(tweetsResponseDTO.getTweets().size() == 0) {
-			log.debug("Inside TweetServiceImpl || getAlltweets Method || No Tweets Found", tweetsResponseDTO.getTweets().size());
+		else if(tweets.size() == 0) {
+			log.debug("Inside TweetServiceImpl || getAlltweets Method || No Tweets Found", tweets.size());
 			log.info("Inside TweetServiceImpl || getAlltweets Method || End");
-			return new ResponseEntity<String>("No Tweet from user", HttpStatus.NOT_FOUND);
+			throw new TweetNotFoundException("No Tweet Found");
 		}
-		log.debug("Inside TweetServiceImpl || getAlltweets Method || Error occur while fetching tweets", tweetsResponseDTO.getTweets().size());
+		log.debug("Inside TweetServiceImpl || getAlltweets Method || Error occur while fetching tweets", tweets.size());
 		log.info("Inside TweetServiceImpl || getAlltweets Method || End");
 		return new ResponseEntity<String>("Something went wrong", HttpStatus.BAD_REQUEST);
 	}
 
 	@Override
-	public ResponseEntity<?> getAllTweetsByUsername(String username) {
+	public ResponseEntity<?> getAllTweetsByUsername(String username) throws TweetNotFoundException {
 		log.info("Inside TweetServiceImpl || getAllTweetsByUsername Method || Start");
-		TweetsResponseDTO tweetsResponseDTO = new TweetsResponseDTO();
-		tweetsResponseDTO.setTweets(tweetRepository.getAllTweetsByUsername(username).get());
-		if(tweetsResponseDTO.getTweets().size() > 0) {
-			log.debug("Inside TweetServiceImpl || getAllTweetsByUsername Method || Tweets Found", tweetsResponseDTO.getTweets().size());
-			log.info("Inside TweetServiceImpl || getAllTweetsByUsername Method || End");
-			return new ResponseEntity<TweetsResponseDTO>(tweetsResponseDTO,HttpStatus.OK);
+		List<TweetsResponseDTO> tweetResponse = new ArrayList<>();
+		Optional<List<Tweet>> optional = tweetRepository.getAllTweetsByUsername(username);
+		if(optional.isPresent()) {
+			List<Tweet> tweets = optional.get();
+			if(tweets.size() > 0) {
+				for (Tweet tweet : tweets) {
+					TweetsResponseDTO tweetsResponseDTO = new TweetsResponseDTO();
+					tweetsResponseDTO.setTweetId(tweet.getTweetId());
+					tweetsResponseDTO.setLoginId(tweet.getLoginId());
+					tweetsResponseDTO.setTweetDescription(tweet.getTweetDescription());
+					tweetsResponseDTO.setPostDate(tweet.getPostDate());
+					tweetsResponseDTO.setTweetTag(tweet.getTweetTag());
+					tweetsResponseDTO.setTweetLikes(tweet.getTweetLikes());
+					List<Reply> replys = (List<Reply>) replyRepository.findAllById(tweet.getReplyId());
+					tweetsResponseDTO.setReplys(replys);
+					tweetsResponseDTO.setLikeIds(tweet.getLikeId());
+					tweetResponse.add(tweetsResponseDTO);
+				}
+				log.debug("Inside TweetServiceImpl || getAllTweetsByUsername Method || Tweets Found", tweets.size());
+				log.info("Inside TweetServiceImpl || getAllTweetsByUsername Method || End");
+				return new ResponseEntity<List<TweetsResponseDTO>>(tweetResponse,HttpStatus.OK);
+			}
+			else if(tweets.size() == 0) {
+				log.debug("Inside TweetServiceImpl || getAllTweetsByUsername Method || No Tweets Found", tweets.size());
+				log.info("Inside TweetServiceImpl || getAllTweetsByUsername Method || End");
+				throw new TweetNotFoundException("No Tweet's Posted by you. If you want to post click on Post Tweet");
+			}
 		}
-		else if(tweetsResponseDTO.getTweets().size() == 0) {
-			log.debug("Inside TweetServiceImpl || getAllTweetsByUsername Method || No Tweets Found", tweetsResponseDTO.getTweets().size());
-			log.info("Inside TweetServiceImpl || getAllTweetsByUsername Method || End");
-			return new ResponseEntity<String>("No Tweet from user", HttpStatus.NOT_FOUND);
-		}
-		log.debug("Inside TweetServiceImpl || getAllTweetsByUsername Method || Error occur while fetching tweets", tweetsResponseDTO.getTweets().size());
+		log.debug("Inside TweetServiceImpl || getAllTweetsByUsername Method || Error occur while fetching tweets");
 		log.info("Inside TweetServiceImpl || getAllTweetsByUsername Method || End");
 		return new ResponseEntity<String>("Something went wrong", HttpStatus.BAD_REQUEST);
 	}
 
 	@Override
-	public ResponseEntity<?> updateTweet(String username, String id, UpdateTweetRequestDTO updateTweetRequestDTO) {
+	public ResponseEntity<Tweet> updateTweet(String username, String id, UpdateTweetRequestDTO updateTweetRequestDTO) throws TweetNotFoundException {
 		log.info("Inside TweetServiceImpl || updateTweet Method || Start");
 		Tweet tweet = tweetRepository.findById(id).get();
 		if(!tweet.getTweetId().isEmpty()) {
 			tweet.setTweetDescription(updateTweetRequestDTO.getTweetDescriptions());
+			tweet.setTweetTag(updateTweetRequestDTO.getTweetTag());
 			tweet = tweetRepository.save(tweet);
 			log.debug("Inside TweetServiceImpl || updateTweet Method || Tweet Updated", id);
 			log.info("Inside TweetServiceImpl || updateTweet Method || End");
@@ -152,32 +190,36 @@ public class TweetServiceImpl implements TweetService {
 		}
 		log.debug("Inside TweetServiceImpl || updateTweet Method || Tweet Not Found", id);
 		log.info("Inside TweetServiceImpl || updateTweet Method || End");
-		return new ResponseEntity<String>("Tweet Not Found",HttpStatus.NOT_FOUND);
+		throw new TweetNotFoundException("No tweet found");
 	}
 
 	@Override
-	public ResponseEntity<?> deleteTweet(String username, String id) {
+	public ResponseEntity<DeleteTweetResponseDTO> deleteTweet(String username, String id) throws TweetNotFoundException {
 		log.info("Inside TweetServiceImpl || deleteTweet Method || Start");
 		Optional<Tweet> optional = tweetRepository.findById(id);
+		DeleteTweetResponseDTO deleteTweetResponseDTO = new DeleteTweetResponseDTO();
 		if(optional.isPresent()) {
 			Tweet tweet = optional.get();
 			if(tweet.getLoginId().equalsIgnoreCase(username)) {
-				log.debug("Inside TweetServiceImpl || deleteTweet Method || Tweet Deleted", id);
+				log.info("Inside TweetServiceImpl || deleteTweet Method || Tweet Deleted", id);
 				tweetRepository.deleteById(id);
 				if(tweet.getReplyId().size() > 0) {
-					log.debug("Inside TweetServiceImpl || deleteTweet Method || Tweet Replys Deleted", tweet.getReplyId().size());
+					log.info("Inside TweetServiceImpl || deleteTweet Method || Tweet Replys Deleted", tweet.getReplyId().size());
 					replyRepository.deleteAllById(tweet.getReplyId());
 				}
+				deleteTweetResponseDTO.setMessage("Tweet Deleted");
 				log.info("Inside TweetServiceImpl || deleteTweet Method || End");
-				return new ResponseEntity<String>("Tweet Deleted", HttpStatus.OK);
+				return new ResponseEntity<DeleteTweetResponseDTO>(deleteTweetResponseDTO, HttpStatus.OK);
 			}
-			log.debug("Inside TweetServiceImpl || deleteTweet Method || User not authorized to delete", username);
+			log.info("Inside TweetServiceImpl || deleteTweet Method || User not authorized to delete", username);
+			deleteTweetResponseDTO.setMessage("You are not authorized to delete the Tweet");
 			log.info("Inside TweetServiceImpl || deleteTweet Method || End");
-			return new ResponseEntity<String>("You are not authorized to delete the Tweet", HttpStatus.FORBIDDEN);
+			return new ResponseEntity<DeleteTweetResponseDTO>(deleteTweetResponseDTO, HttpStatus.FORBIDDEN);
 		}
 		log.debug("Inside TweetServiceImpl || deleteTweet Method || No tweet Found", id);
+		deleteTweetResponseDTO.setMessage("You are not authorized to delete the Tweet");
 		log.info("Inside TweetServiceImpl || deleteTweet Method || End");
-		return new ResponseEntity<String>("Could not find the tweet", HttpStatus.NOT_FOUND);
+		throw new TweetNotFoundException("Could not find the tweet");
 	}
 
 	@Override
