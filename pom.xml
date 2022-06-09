@@ -88,8 +88,8 @@
           <region>westus</region>
           <runtime>
             <os>windows</os>
-            <javaVersion>1.8</javaVersion>
-            <webContainer>tomcat 8.5</webContainer>
+            <javaVersion>Java 8</javaVersion>  
+            <webContainer>Java SE</webContainer>
           </runtime>
           <deployment>
             <resources>
